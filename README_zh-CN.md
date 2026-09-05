@@ -2,9 +2,9 @@
 
 # 面向 ARC-AGI-3 的长程 LLM Agent 后训练
 
-本研究产物探索如何在反馈稀疏且可能被利用的长程交互环境中，对语言模型 Agent 进行后训练。
+本项目探索如何在反馈稀疏且可能被利用的长程交互环境中，对语言模型 Agent 进行后训练。
 
-**状态：** 研究产物正在整理发布 · **时间：** 2026 年 1–5 月 · **主要任务：** ARC-AGI-3 `ft09` · **配套工具：** [RLM Trajectory Viewer](https://github.com/yuran986/Trajectoryvisualizationwebpage)
+> **代码发布：** 我们正在清理和整理 RLM adapter、SkyRL 训练集成、实验配置与代表性轨迹，代码将于近期发布。[轨迹 Viewer](https://github.com/yuran986/Trajectoryvisualizationwebpage) 已经开放。
 
 ## 摘要
 
@@ -121,19 +121,6 @@ oracle_progress_t = [d(s_{t-1}) - d(s_t)] × oracle_distance_reward
 
 ARC-AGI-3 将视觉 grounding、隐藏规则和稀疏终局反馈耦合在一起。为了区分任务难度和 RL pipeline 失败，我们还实现了探索性的 ALE-Bench 集成，包括代码解析、public judge 执行、signed/normalized verifier reward、多轮 improvement signal、SkyRL launcher、适配集群环境的 Apptainer backend 和 rollout viewer。该分支已经形成最小可训练系统，但尚未得到稳定训练提升；它仍是辅助诊断 testbed，而不是已报告的正结果。
 
-## Artifact 与复现状态
-
-| Artifact | 状态 |
-|---|---|
-| 研究设计、实验配置与负结果 | 已在本 README 中记录 |
-| 交互式轨迹 Viewer | 已在[配套仓库](https://github.com/yuran986/Trajectoryvisualizationwebpage)公开 |
-| 脱敏的代表性轨迹 | 整理中 |
-| RLM 环境 adapter 与 baseline launcher | 整理中 |
-| SkyRL 环境、reward 代码与训练配置 | 整理中 |
-| CPU tests 与端到端复现说明 | 整理中 |
-
-当前仓库应被视为分阶段发布的研究产物，而不是已经可以一键复现的完整 package。Checkpoint、原始日志、私有集群路径和受限制的环境资产不会公开。
-
 ## 局限性
 
 - 受控 ARC 实验只覆盖有限的游戏，主要为 `ft09`；是否适用于其他游戏仍需验证。
@@ -141,19 +128,6 @@ ARC-AGI-3 将视觉 grounding、隐藏规则和稀疏终局反馈耦合在一起
 - Reward 系数发生变化，因此不能直接比较所有 run 的原始 scalar score。
 - 更强基座模型和所测试的 KL 设置均未得到稳定 level completion。
 - 实验尚未扩展到广泛的跨游戏评测，本文也不宣称取得正向 benchmark 结果。
-
-## 引用
-
-如果本研究产物对你的工作有帮助，请引用：
-
-```bibtex
-@misc{zhang2026longhorizonarcagi3,
-  author       = {Yingjie Zhang},
-  title        = {Long-Horizon LLM Agent Post-Training for ARC-AGI-3},
-  year         = {2026},
-  howpublished = {\url{https://github.com/yuran986/arc-agi-3-agent-post-training}}
-}
-```
 
 ## 致谢
 

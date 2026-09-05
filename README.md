@@ -2,9 +2,9 @@
 
 # Long-Horizon LLM Agent Post-Training for ARC-AGI-3
 
-A research artifact studying language-model post-training in long-horizon, interactive environments with sparse and potentially exploitable feedback.
+This project studies language-model post-training in long-horizon, interactive environments with sparse and potentially exploitable feedback.
 
-**Status:** research artifact under release preparation · **Period:** January–May 2026 · **Primary task:** ARC-AGI-3 `ft09` · **Companion tool:** [RLM Trajectory Viewer](https://github.com/yuran986/Trajectoryvisualizationwebpage)
+> **Code release:** We are cleaning and packaging the RLM adapter, SkyRL training integration, experiment configurations, and representative trajectories. Code will be released soon. The [trajectory viewer](https://github.com/yuran986/Trajectoryvisualizationwebpage) is already available.
 
 ## Abstract
 
@@ -121,19 +121,6 @@ The [RLM Trajectory Viewer](https://github.com/yuran986/Trajectoryvisualizationw
 
 ARC-AGI-3 entangles visual grounding with hidden rules and sparse terminal feedback. To distinguish task difficulty from failures in the RL pipeline, we also implemented an exploratory ALE-Bench integration with code parsing, public-judge execution, signed/normalized verifier rewards, multi-turn improvement signals, SkyRL launchers, an Apptainer backend for the cluster environment, and a rollout viewer. This branch reached a minimal trainable system but did not establish stable learning gains; it remains an auxiliary diagnostic testbed rather than a reported positive result.
 
-## Artifact and reproducibility status
-
-| Artifact | Status |
-|---|---|
-| Research design, configurations, and negative results | Documented in this README |
-| Interactive trajectory viewer | Public in the [companion repository](https://github.com/yuran986/Trajectoryvisualizationwebpage) |
-| Sanitized representative trajectories | In preparation |
-| RLM environment adapter and baseline launcher | In preparation |
-| SkyRL environment, reward code, and training configurations | In preparation |
-| CPU tests and end-to-end reproduction instructions | In preparation |
-
-The current repository should be read as a staged research release, not yet as a turnkey reproduction package. Checkpoints, raw logs, private cluster paths, and restricted environment assets will not be released.
-
 ## Limitations
 
 - The controlled ARC experiments focus on a limited set of games, primarily `ft09`; conclusions about other games require validation.
@@ -141,19 +128,6 @@ The current repository should be read as a staged research release, not yet as a
 - Changing reward coefficients prevents direct comparison of raw scalar scores across all runs.
 - Neither a stronger base model nor the tested KL setting produced stable level completion.
 - Evaluation was not extended to broad cross-game coverage, and no positive benchmark result is claimed.
-
-## Citation
-
-If this research artifact is useful in your work, please cite:
-
-```bibtex
-@misc{zhang2026longhorizonarcagi3,
-  author       = {Yingjie Zhang},
-  title        = {Long-Horizon LLM Agent Post-Training for ARC-AGI-3},
-  year         = {2026},
-  howpublished = {\url{https://github.com/yuran986/arc-agi-3-agent-post-training}}
-}
-```
 
 ## Acknowledgments
 
