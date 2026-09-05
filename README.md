@@ -22,7 +22,7 @@ The interactive viewer supports:
 - per-action post-state reconstruction from structured events, paired frame logs, or legacy REPL outputs;
 - completion- and iteration-level navigation across multiple runs.
 
-Viewer source and detailed documentation: [Trajectoryvisualizationwebpage](https://github.com/yuran986/Trajectoryvisualizationwebpage)
+Viewer source, animated demo, and detailed documentation: [Trajectoryvisualizationwebpage](https://github.com/yuran986/Trajectoryvisualizationwebpage)
 
 ## Research questions
 

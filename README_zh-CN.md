@@ -22,7 +22,7 @@
 - 从结构化事件、配套 frame 日志或旧版 REPL 输出中重建每次动作后的状态；
 - 在多次运行之间按 completion 和 iteration 导航。
 
-Viewer 源码与详细文档：[Trajectoryvisualizationwebpage](https://github.com/yuran986/Trajectoryvisualizationwebpage)
+Viewer 源码、动态演示与详细文档：[Trajectoryvisualizationwebpage](https://github.com/yuran986/Trajectoryvisualizationwebpage)
 
 ## 研究问题
 
