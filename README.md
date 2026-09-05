@@ -1,69 +1,122 @@
+[English](README.md) | [简体中文](README_zh-CN.md)
+
 # Long-Horizon LLM Agent Post-Training for ARC-AGI-3
 
-This project studies how post-training can improve LLM agents in long-horizon, multi-turn environments with sparse feedback. ARC-AGI-3 serves as the primary testbed: an agent must infer visual rules from interaction, maintain state across a growing trajectory, and select actions whose consequences may only become clear many steps later.
+An exploratory research project on adapting language-model agents to long-horizon, interactive ARC-AGI-3 environments through recursive inference, multi-turn reinforcement learning, compact visual observations, and trajectory-level diagnosis.
 
-The project began with a zero-shot **Recursive Language Model (RLM)** baseline and later evolved into an end-to-end reinforcement-learning pipeline built on **SkyRL**.
+> **Project status.** The experiments established an end-to-end training and analysis workflow, but did not produce a policy with stable level completion. The most useful outcomes are the infrastructure, failure analysis, and lessons for future long-horizon agent training. The code and sanitized experiment artifacts are being consolidated into this repository.
 
-> **Status:** The research prototype and experiment artifacts are being cleaned up for release. This repository currently documents the project; runnable code, configurations, and selected trajectories will be added incrementally.
+## Trajectory viewer
+
+<p align="center">
+  <img src="fig/rlm-trajectory-viewer.png" alt="Interactive RLM trajectory viewer showing an ARC-AGI-3 frame, run metadata, and model reasoning trace" width="100%">
+</p>
+
+<p align="center"><em>An unsuccessful zero-shot RLM trajectory ending in GAME_OVER with zero levels completed. The viewer aligns environment frames with model responses, REPL execution, actions, and run metadata for failure diagnosis.</em></p>
+
+The interactive viewer supports:
+
+- drag-and-drop playback of RLM and ARC environment JSONL logs;
+- live monitoring and offline inspection of long trajectories;
+- synchronized frames, actions, model responses, REPL/tool outputs, and timing;
+- completion- and iteration-level navigation across multiple runs.
+
+Viewer source: [Trajectoryvisualizationwebpage](https://github.com/yuran986/Trajectoryvisualizationwebpage)
 
 ## Research questions
 
-- Can an RLM use a REPL and external state to manage long interactive trajectories more effectively than a standard prompting loop?
-- Can multi-turn post-training teach a small open-weight model to explore visual environments and make sustained progress?
-- How should observations and rewards be designed so that higher training reward corresponds to actual task completion?
+- Can recursive language-model inference solve interactive ARC tasks without task-specific training?
+- Can stateful, multi-turn RL improve exploration and delayed-credit assignment?
+- How can visual state be represented compactly without losing information needed for grounding?
+- Which reward signals improve actual progress rather than merely increasing the training score?
 
 ## Project evolution
 
-### 1. Zero-shot RLM baseline
+### 1. Zero-shot recursive inference
 
-I first adapted an RLM-style agent to interact directly with ARC-AGI-3. The REPL let the model inspect, crop, compare, and summarize visual states without repeatedly placing every full frame in the prompt.
+I first adapted [Recursive Language Models (RLM)](https://github.com/alexzhang13/rlm) to interact with ARC-AGI-3 environments and served GLM-4.7-Flash locally with vLLM. The agent could inspect state and execute actions through a REPL, but long trajectories exposed weak visual grounding, rapid context growth, repeated ineffective actions, and unreliable recovery from early mistakes.
 
-The baseline established a useful interaction interface, but did not reliably solve long-horizon levels. Its main failure modes were weak visual grounding, growing context, repeated ineffective actions, and dependence on the capabilities of the base model.
+### 2. Multi-turn post-training
 
-### 2. Multi-turn GRPO with SkyRL
+I then built a stateful GRPO training pipeline on [SkyRL](https://github.com/NovaSky-AI/SkyRL), using Qwen2.5-3B and Qwen3-8B policies with FSDP2 training and vLLM rollouts on a 4×A6000 node. The environment wrapper preserved game state across turns and logged complete trajectories for later inspection.
 
-I then integrated ARC-AGI-3 as a stateful SkyRL environment and built a multi-turn GRPO training pipeline. Experiments used Qwen2.5-3B and Qwen3-8B policies, with FSDP for distributed training and vLLM for rollout generation on a 4×A6000 node.
+To reduce observation length, each rollout received the initial frame followed by structured adjacent-frame differences and local changed patches instead of repeatedly serializing the entire screen.
 
-The pipeline includes:
+### 3. Reward and optimization ablations
 
-- stateful environment interaction and action validation;
-- compact adjacent-frame-diff observations;
-- structured reward components and trajectory metadata;
-- rollout logging and an interactive trajectory visualizer;
-- oracle-distance warm-up rewards and KL regularization;
-- an experimental extension to ALE-Bench as a denser-feedback testbed.
+Dense progress signals made optimization easier, but agents learned repetitive clicks that accumulated scalar reward without completing a level. I also tested:
+
+- **oracle-distance warm-up:** provided a clearer progress signal, but encoded game-specific knowledge and was dropped because it was unlikely to generalize;
+- **KL regularization:** constrained policy drift, but produced limited practical gains in the tested setting;
+- **controlled reward shaping:** separated score improvement from genuine environment progress and made reward-hacking behavior easier to identify.
+
+Because ARC-AGI-3 made it difficult to separate training-pipeline issues from sparse-feedback exploration failures, I also began an experimental adaptation to **ALE-Bench** as a denser-feedback testbed. This branch remained exploratory rather than becoming a completed benchmark study.
+
+## System overview
+
+```mermaid
+flowchart LR
+    A[ARC-AGI-3 environment] --> B[State and frame]
+    B --> C[Initial frame + structured frame diff]
+    C --> D[vLLM multi-turn rollout]
+    D --> E[Action parser and environment step]
+    E --> A
+    E --> F[Reward components + trajectory metadata]
+    F --> G[GRPO advantage]
+    G --> H[FSDP2 policy update]
+    H --> D
+    D --> I[JSONL rollout logs]
+    I --> J[Trajectory viewer]
+```
 
 ## Main findings
 
-1. **More context did not fix weak grounding.** Supplying complete histories or repeated frames increased token usage without ensuring that the policy understood state changes.
-2. **Aggregate reward was not a sufficient success metric.** Reward ablations raised scalar scores while level completion remained unchanged.
-3. **Trajectory inspection exposed reward hacking.** The policy learned repetitive clicks that triggered small rewards without advancing the task.
-4. **Frame differences improved observability, not necessarily reasoning.** Compact diffs made long trajectories cheaper and easier to diagnose, but the model could still ignore or misinterpret them.
-5. **Oracle guidance is better used as progress supervision than as a single action script.** Oracle-distance rewards preserve multiple valid paths, though stronger initialization or a curriculum is still needed.
+- A rising training reward did not imply improved level completion.
+- Dense scalar rewards created exploitable local incentives, especially repetitive-action loops.
+- Compact frame differences reduced context usage, but representation efficiency alone did not solve visual grounding.
+- Long-horizon interaction amplified early mistakes and made sparse terminal feedback difficult to assign.
+- Oracle guidance can stabilize a narrow task while undermining the goal of cross-game generalization.
+- A stronger base model or additional KL control was insufficient without better state abstraction, exploration, and progress signals.
 
-## Planned repository structure
+## Experimental components
+
+| Component | Role | Outcome |
+|---|---|---|
+| Zero-shot RLM agent | Test recursive inference without training | Produced useful traces, but no reliable level completion |
+| Stateful SkyRL environment | Preserve interactive state across rollout turns | Enabled end-to-end multi-turn GRPO experiments |
+| Initial frame + frame diffs | Reduce observation-token growth | More compact trajectories; grounding remained a bottleneck |
+| Dense reward shaping | Supply intermediate learning signals | Improved scalar reward but exposed reward hacking |
+| Oracle-distance warm-up | Provide directed early-stage supervision | Too game-specific for the desired generalization |
+| KL regularization | Limit destructive policy drift | Stable to run, with limited observed benefit |
+| ALE-Bench adaptation | Test the pipeline with denser environment feedback | Exploratory branch used to investigate task difficulty and feedback sparsity |
+| Trajectory viewer | Align behavior, state, and training signals | Made repeated-action and grounding failures inspectable |
+
+## Repository roadmap
+
+- [x] Add project overview and research conclusions
+- [x] Publish the trajectory-viewer example
+- [ ] Extract the environment adapter and observation encoder
+- [ ] Add sanitized training configurations and launch scripts
+- [ ] Release representative trajectories and evaluation summaries
+- [ ] Document reproducible setup and evaluation commands
+
+## Intended repository structure
 
 ```text
-arc-agi-3-agent-post-training/
-├── arc_agi3/          # SkyRL environment, observations, and rewards
-├── rlm_baseline/      # Zero-shot RLM agent and evaluation scripts
-├── scripts/           # Training and evaluation launchers
-├── visualization/     # Rollout and oracle trajectory viewer
-├── configs/           # Reproducible experiment configurations
-└── docs/              # Experiment notes and selected case studies
+.
+├── configs/          # Sanitized experiment configurations
+├── docs/             # Design notes and experiment summaries
+├── examples/         # Example rollouts and usage
+├── fig/              # README and analysis figures
+├── scripts/          # Training, serving, and evaluation entry points
+├── src/              # Environment, observation, reward, and logging code
+└── viewer/           # Viewer integration notes or submodule reference
 ```
 
-## Next steps
+## Limitations
 
-- Release a minimal reproducible ARC-AGI-3 environment integration.
-- Add representative training configurations and sanitized rollout traces.
-- Package the trajectory visualizer and document the reward-ablation results.
-- Evaluate oracle-state curricula and behavior-cloning warm-up before GRPO.
-
-## Outcome
-
-The trained policies did not yet achieve stable level completion. The main outcome is an end-to-end experimental system and a set of behavior-level findings about observation design, reward hacking, and credit assignment in long-horizon agent post-training.
+This was an exploratory research effort rather than a completed benchmark result. Experiments covered a limited set of games and compute budgets, and neither the oracle-guided nor KL-regularized variants yielded a general solution. Reported conclusions are therefore qualitative and are intended to guide the next iteration rather than claim ARC-AGI-3 performance.
 
 ## Acknowledgments
 
-This project builds on [SkyRL](https://github.com/NovaSky-AI/SkyRL) and the ARC-AGI-3 environment. It is an independent research project and is not affiliated with the ARC Prize Foundation or the SkyRL authors.
+This project builds on [ARC-AGI-3](https://arcprize.org/arc-agi/3/), [RLM](https://github.com/alexzhang13/rlm), [SkyRL](https://github.com/NovaSky-AI/SkyRL), vLLM, and PyTorch FSDP2.
