@@ -19,9 +19,10 @@
 - 拖放并回放 RLM 与 ARC 环境的 JSONL 日志；
 - 实时监控和离线检查长程轨迹；
 - 同步展示画面、动作、模型回复、REPL/工具输出与耗时；
+- 从结构化事件、配套 frame 日志或旧版 REPL 输出中重建每次动作后的状态；
 - 在多次运行之间按 completion 和 iteration 导航。
 
-Viewer 源码：[Trajectoryvisualizationwebpage](https://github.com/yuran986/Trajectoryvisualizationwebpage)
+Viewer 源码与详细文档：[Trajectoryvisualizationwebpage](https://github.com/yuran986/Trajectoryvisualizationwebpage)
 
 ## 研究问题
 
