@@ -2,121 +2,158 @@
 
 # Long-Horizon LLM Agent Post-Training for ARC-AGI-3
 
-An exploratory research project on adapting language-model agents to long-horizon, interactive ARC-AGI-3 environments through recursive inference, multi-turn reinforcement learning, compact visual observations, and trajectory-level diagnosis.
+A research artifact studying language-model post-training in long-horizon, interactive environments with sparse and potentially exploitable feedback.
 
-> **Project status.** The experiments established an end-to-end training and analysis workflow, but did not produce a policy with stable level completion. The most useful outcomes are the infrastructure, failure analysis, and lessons for future long-horizon agent training. The code and sanitized experiment artifacts are being consolidated into this repository.
+**Status:** research artifact under release preparation · **Period:** January–May 2026 · **Primary task:** ARC-AGI-3 `ft09` · **Companion tool:** [RLM Trajectory Viewer](https://github.com/yuran986/Trajectoryvisualizationwebpage)
 
-## Trajectory viewer
+## Abstract
 
-<p align="center">
-  <img src="fig/rlm-trajectory-viewer.png" alt="Interactive RLM trajectory viewer showing an ARC-AGI-3 frame, run metadata, and model reasoning trace" width="100%">
-</p>
+ARC-AGI-3 combines visual grounding, hidden-rule discovery, exploration, and delayed credit assignment in a stateful environment. This project asks whether externalized recursive inference and reinforcement-learning post-training can improve an LLM agent on that combination. We first built a zero-shot Recursive Language Model (RLM) agent that interacts with the environment through a REPL, then integrated ARC-AGI-3 into SkyRL for stateful multi-turn GRPO with Qwen2.5-3B and Qwen3-8B policies. The system includes structured frame-difference observations, component-wise rewards, oracle-distance warm-up, KL regularization, distributed FSDP2 training, vLLM rollout generation, and trajectory-level visualization.
 
-<p align="center"><em>An unsuccessful zero-shot RLM trajectory ending in GAME_OVER with zero levels completed. The viewer aligns environment frames with model responses, REPL execution, actions, and run metadata for failure diagnosis.</em></p>
+The experiments did **not** yield stable level completion. Their central result is diagnostic: denser shaping improved scalar reward while leaving `pass@1` and completed levels unchanged. Trajectory inspection showed that the policy exploited a repeatable local transition rather than learning sustained visual reasoning. The project therefore contributes an end-to-end experimental system and a controlled negative result about reward design for long-horizon agents, rather than a solved ARC-AGI-3 policy.
 
-The interactive viewer supports:
+> **Main finding:** reward improvement was not capability improvement. In the strongest controlled comparison, all 16 sampled trajectories found the same single oracle-progress action and then produced 144/160 no-progress actions; level completion remained zero.
 
-- drag-and-drop playback of RLM and ARC environment JSONL logs;
-- live monitoring and offline inspection of long trajectories;
-- synchronized frames, actions, model responses, REPL/tool outputs, and timing;
-- per-action post-state reconstruction from structured events, paired frame logs, or legacy REPL outputs;
-- completion- and iteration-level navigation across multiple runs.
+## Contributions
 
-Viewer source, animated demo, and detailed documentation: [Trajectoryvisualizationwebpage](https://github.com/yuran986/Trajectoryvisualizationwebpage)
+- An end-to-end stateful ARC-AGI-3 integration spanning multi-turn rollout, action validation, decomposed rewards, GRPO updates, and trajectory logging.
+- A token-efficient observation interface based on an initial full frame followed by structured adjacent-frame deltas and local changed patches.
+- Controlled oracle-distance, no-progress-penalty, meaningful-diff, and KL ablations that separate scalar reward gains from task progress.
+- A trajectory-analysis workflow that aligns model reasoning, REPL execution, actions, and post-action frames to expose behavioral failure modes.
 
-## Research questions
-
-- Can recursive language-model inference solve interactive ARC tasks without task-specific training?
-- Can stateful, multi-turn RL improve exploration and delayed-credit assignment?
-- How can visual state be represented compactly without losing information needed for grounding?
-- Which reward signals improve actual progress rather than merely increasing the training score?
-
-## Project evolution
-
-### 1. Zero-shot recursive inference
-
-I first adapted [Recursive Language Models (RLM)](https://github.com/alexzhang13/rlm) to interact with ARC-AGI-3 environments and served GLM-4.7-Flash locally with vLLM. The agent could inspect state and execute actions through a REPL, but long trajectories exposed weak visual grounding, rapid context growth, repeated ineffective actions, and unreliable recovery from early mistakes.
-
-### 2. Multi-turn post-training
-
-I then built a stateful GRPO training pipeline on [SkyRL](https://github.com/NovaSky-AI/SkyRL), using Qwen2.5-3B and Qwen3-8B policies with FSDP2 training and vLLM rollouts on a 4×A6000 node. The environment wrapper preserved game state across turns and logged complete trajectories for later inspection.
-
-To reduce observation length, each rollout received the initial frame followed by structured adjacent-frame differences and local changed patches instead of repeatedly serializing the entire screen.
-
-### 3. Reward and optimization ablations
-
-Dense progress signals made optimization easier, but agents learned repetitive clicks that accumulated scalar reward without completing a level. I also tested:
-
-- **oracle-distance warm-up:** provided a clearer progress signal, but encoded game-specific knowledge and was dropped because it was unlikely to generalize;
-- **KL regularization:** constrained policy drift, but produced limited practical gains in the tested setting;
-- **controlled reward shaping:** separated score improvement from genuine environment progress and made reward-hacking behavior easier to identify.
-
-Because ARC-AGI-3 made it difficult to separate training-pipeline issues from sparse-feedback exploration failures, I also began an experimental adaptation to **ALE-Bench** as a denser-feedback testbed. This branch remained exploratory rather than becoming a completed benchmark study.
-
-## System overview
+## Method
 
 ```mermaid
 flowchart LR
-    A[ARC-AGI-3 environment] --> B[State and frame]
-    B --> C[Initial frame + structured frame diff]
-    C --> D[vLLM multi-turn rollout]
-    D --> E[Action parser and environment step]
+    A[ARC-AGI-3 state] --> B[Initial frame or structured frame delta]
+    B --> C[Multi-turn policy rollout via vLLM]
+    C --> D[Parse and validate action]
+    D --> E[Stateful environment step]
     E --> A
-    E --> F[Reward components + trajectory metadata]
-    F --> G[GRPO advantage]
-    G --> H[FSDP2 policy update]
-    H --> D
-    D --> I[JSONL rollout logs]
-    I --> J[Trajectory viewer]
+    E --> F[Reward components and trajectory metadata]
+    F --> G[Group-relative advantages]
+    G --> H[GRPO policy update via FSDP2]
+    H --> C
+    C --> I[JSONL execution trace]
+    I --> J[Trajectory-level analysis]
 ```
 
-## Main findings
+### Stage I: zero-shot recursive inference
 
-- A rising training reward did not imply improved level completion.
-- Dense scalar rewards created exploitable local incentives, especially repetitive-action loops.
-- Compact frame differences reduced context usage, but representation efficiency alone did not solve visual grounding.
-- Long-horizon interaction amplified early mistakes and made sparse terminal feedback difficult to assign.
-- Oracle guidance can stabilize a narrow task while undermining the goal of cross-game generalization.
-- A stronger base model or additional KL control was insufficient without better state abstraction, exploration, and progress signals.
+We adapted [RLM](https://github.com/alexzhang13/rlm) to expose ARC-AGI-3 state and actions as REPL functions and served GLM-4.7-Flash locally through vLLM. External variables let the model retain frames, crop regions, compute differences, and query long context without inserting every full observation into the prompt. This baseline produced interpretable exploration traces, but remained highly dependent on the base model and failed under long context, weak spatial grounding, repeated ineffective actions, and poor recovery from early errors.
 
-## Experimental components
+### Stage II: stateful multi-turn GRPO
 
-| Component | Role | Outcome |
-|---|---|---|
-| Zero-shot RLM agent | Test recursive inference without training | Produced useful traces, but no reliable level completion |
-| Stateful SkyRL environment | Preserve interactive state across rollout turns | Enabled end-to-end multi-turn GRPO experiments |
-| Initial frame + frame diffs | Reduce observation-token growth | More compact trajectories; grounding remained a bottleneck |
-| Dense reward shaping | Supply intermediate learning signals | Improved scalar reward but exposed reward hacking |
-| Oracle-distance warm-up | Provide directed early-stage supervision | Too game-specific for the desired generalization |
-| KL regularization | Limit destructive policy drift | Stable to run, with limited observed benefit |
-| ALE-Bench adaptation | Test the pipeline with denser environment feedback | Exploratory branch used to investigate task difficulty and feedback sparsity |
-| Trajectory viewer | Align behavior, state, and training signals | Made repeated-action and grounding failures inspectable |
+We implemented a SkyRL environment that preserves game state across turns, validates textual and coordinate actions, and records the full transition history. A rollout emits reasoning plus a final action block; the environment executes only the last action, checks it against the current action space, advances the game, and returns the next compact observation and decomposed reward.
 
-## Repository roadmap
+### Observation design
 
-- [x] Add project overview and research conclusions
-- [x] Publish the trajectory-viewer example
-- [ ] Extract the environment adapter and observation encoder
-- [ ] Add sanitized training configurations and launch scripts
-- [ ] Release representative trajectories and evaluation summaries
-- [ ] Document reproducible setup and evaluation commands
-
-## Intended repository structure
+The initial turn contains the goal, available actions, coordinate range, color legend, and complete `64×64` frame. Later turns contain the previous action, environment state, and an adjacent-frame delta:
 
 ```text
-.
-├── configs/          # Sanitized experiment configurations
-├── docs/             # Design notes and experiment summaries
-├── examples/         # Example rollouts and usage
-├── fig/              # README and analysis figures
-├── scripts/          # Training, serving, and evaluation entry points
-├── src/              # Environment, observation, reward, and logging code
-└── viewer/           # Viewer integration notes or submodule reference
+observation_t = state_t + action_{t-1} + diff(frame_{t-1}, frame_t) + local changed patches
 ```
+
+Diff metadata includes the number of changed cells, bounding box, color-transition counts, and connected components. Redundant copies of the previous model output were removed because SkyRL already retains the multi-turn chat history.
+
+### Reward design
+
+The base reward combines task progress with weak behavioral shaping:
+
+```text
+r_t = level_progress + meaningful_diff - invalid_action - repeated_click
+```
+
+For warm-up experiments, a legal game-specific solver defines an oracle distance `d(s)` and supplies potential-style progress without requiring imitation of a unique action sequence:
+
+```text
+oracle_progress_t = [d(s_{t-1}) - d(s_t)] × oracle_distance_reward
+```
+
+States that become unrecoverable receive an additional penalty. This signal was useful for controlled diagnosis but was not adopted as a general solution because it encodes `ft09`-specific knowledge.
+
+## Experimental setup
+
+| Dimension | Configuration |
+|---|---|
+| Environment | ARC-AGI-3, primary experiments on `ft09` |
+| Zero-shot model | GLM-4.7-Flash served with vLLM |
+| Trainable policies | Qwen2.5-3B-Instruct; Qwen3-8B |
+| Optimization | Stateful multi-turn GRPO with optional KL regularization |
+| Training system | SkyRL, PyTorch FSDP2, vLLM |
+| Hardware | 4×NVIDIA A6000; typically 2 training + 2 rollout GPUs, with selected Qwen3 runs using 3+1 |
+| Context profiles | 16K/18K after diagnosing premature termination near 8K tokens |
+| Primary metrics | `pass@1`, levels completed, invalid actions, oracle progress, no-progress actions, reward components |
+
+## Results
+
+### Oracle-distance warm-up ablation
+
+| Variant | Key change | Final avg. score | `pass@1` | Levels completed | Behavioral outcome |
+|---|---|---:|---:|---:|---|
+| v1 | Oracle progress + weak meaningful-diff reward | `0.055` | `0.0` | `0.0` | Learned one progress transition, then stalled |
+| v2 | Add `-0.01` no-progress penalty | `-0.035` | `0.0` | `0.0` | Accepted repeated penalties instead of finding the next transition |
+| v3 | Increase meaningful-diff reward to `0.01` | `-0.030` | `0.0` | `0.0` | Same behavior; 16/160 progress and 144/160 no-progress actions at step 200 |
+
+Scalar rewards across variants are **not directly comparable** because the reward definition changes. The task metrics are stable: every reported variant has zero `pass@1` and zero completed levels. The apparent v2→v3 score gain is explained by the larger shaping coefficient, not by better behavior.
+
+### Failure analysis
+
+| Observation | Evidence | Implication |
+|---|---|---|
+| Valid actions are not sufficient | Invalid actions reached zero while progress remained zero | Syntax/control learning and task learning must be evaluated separately |
+| Dense reward can reinforce a local optimum | The policy repeatedly clicked a region that reliably changed pixels | Auxiliary rewards require behavioral audits, not only aggregate curves |
+| Providing a diff does not ensure grounding | The agent sometimes claimed no change after receiving a 38-cell delta | Observation compression and observation use are distinct problems |
+| Penalties do not create exploration | The no-progress penalty changed score but not the action pattern | Escaping a local policy likely requires curriculum, demonstrations, or stronger search |
+| KL is a stabilizer, not task supervision | Higher KL constrained collapse but did not teach the hidden visual rule | Conservative updates cannot replace informative initialization |
+
+## Trajectory analysis
+
+<p align="center">
+  <img src="fig/rlm-trajectory-viewer.png" alt="RLM trajectory analysis showing ARC-AGI-3 state, run metadata, and collapsed iterations with action counts" width="92%">
+</p>
+
+<p align="center"><em>The companion viewer aligns live/offline frames, run metadata, model responses, REPL execution, action events, and per-iteration action counts. The displayed zero-shot trajectory ends in GAME_OVER with no completed levels.</em></p>
+
+The [RLM Trajectory Viewer](https://github.com/yuran986/Trajectoryvisualizationwebpage) provides the animated demo and implementation details. Its purpose is experimental auditing: it reconstructs behavior behind an aggregate reward and exposes repeated clicks, ignored state changes, truncation, and action-to-frame mismatches.
+
+## Auxiliary testbed: ALE-Bench
+
+ARC-AGI-3 entangles visual grounding with hidden rules and sparse terminal feedback. To distinguish task difficulty from failures in the RL pipeline, we also implemented an exploratory ALE-Bench integration with code parsing, public-judge execution, signed/normalized verifier rewards, multi-turn improvement signals, SkyRL launchers, an Apptainer backend for the cluster environment, and a rollout viewer. This branch reached a minimal trainable system but did not establish stable learning gains; it remains an auxiliary diagnostic testbed rather than a reported positive result.
+
+## Artifact and reproducibility status
+
+| Artifact | Status |
+|---|---|
+| Research design, configurations, and negative results | Documented in this README |
+| Interactive trajectory viewer | Public in the [companion repository](https://github.com/yuran986/Trajectoryvisualizationwebpage) |
+| Sanitized representative trajectories | In preparation |
+| RLM environment adapter and baseline launcher | In preparation |
+| SkyRL environment, reward code, and training configurations | In preparation |
+| CPU tests and end-to-end reproduction instructions | In preparation |
+
+The current repository should be read as a staged research release, not yet as a turnkey reproduction package. Checkpoints, raw logs, private cluster paths, and restricted environment assets will not be released.
 
 ## Limitations
 
-This was an exploratory research effort rather than a completed benchmark result. Experiments covered a limited set of games and compute budgets, and neither the oracle-guided nor KL-regularized variants yielded a general solution. Reported conclusions are therefore qualitative and are intended to guide the next iteration rather than claim ARC-AGI-3 performance.
+- The controlled ARC experiments focus on a limited set of games, primarily `ft09`; conclusions about other games require validation.
+- Oracle distance is game-specific and is reported as an ablation, not a general ARC-AGI-3 method.
+- Changing reward coefficients prevents direct comparison of raw scalar scores across all runs.
+- Neither a stronger base model nor the tested KL setting produced stable level completion.
+- Evaluation was not extended to broad cross-game coverage, and no positive benchmark result is claimed.
+
+## Citation
+
+If this research artifact is useful in your work, please cite:
+
+```bibtex
+@misc{zhang2026longhorizonarcagi3,
+  author       = {Yingjie Zhang},
+  title        = {Long-Horizon LLM Agent Post-Training for ARC-AGI-3},
+  year         = {2026},
+  howpublished = {\url{https://github.com/yuran986/arc-agi-3-agent-post-training}}
+}
+```
 
 ## Acknowledgments
 
